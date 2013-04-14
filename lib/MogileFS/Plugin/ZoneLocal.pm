@@ -94,20 +94,26 @@ sub unload {
 sub prioritize_devs_current_zone {
     my $local_ip = shift;
     my $sorter   = shift;
-    my $current_zone = MogileFS::Network->zone_for_ip($local_ip);
+
+    my @current_zones = MogileFS::Network->zones_for_ip($local_ip);
     error("Cannot find current zone for local ip $local_ip")
-        unless defined $current_zone;
+        unless @current_zones;
 
     my (@this_zone, @other_zone);
 
     foreach my $dev (@_) {
         my $ip = $dev->host->ip;
         my $host_id = $dev->host->id;
-        my $zone = MogileFS::Network->zone_for_ip($ip);
+        my @zones = MogileFS::Network->zones_for_ip($ip);
         error("Cannot find zone for remote IP $ip")
-            unless defined $zone;
+            unless @zones;
 
-        if ($current_zone eq $zone) {
+        # Find intersecting zones
+        my %current_zones = map { $_ => 1 } @current_zones;
+        my %zones = map { $_ => 1 } @zones;
+        my @intersecting_zones = grep $zones{$_}, @current_zones;
+
+        if (@intersecting_zones) {
             push @this_zone, $dev;
         } else {
             push @other_zone, $dev;

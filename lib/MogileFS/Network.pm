@@ -23,15 +23,15 @@ use strict;
 use warnings;
 
 use Net::Netmask;
-use Net::Patricia;
 use MogileFS::Config;
+use MogileFS::Network::List;
 
 our $VERSION = "0.06";
 
 use constant DEFAULT_RELOAD_INTERVAL => 60;
 
-my $trie = Net::Patricia->new(); # Net::Patricia object used for cache and lookup.
-my $next_reload = 0;             # Epoch time at or after which the trie expires and must be regenerated.
+my $networks = MogileFS::Network::List->new(); # objected used for cache and lookup
+my $next_reload = 0;                           # Epoch time at or after which the trie expires and must be regenerated.
 my $has_cached = MogileFS::Config->can('server_setting_cached');
 
 sub zone_for_ip {
@@ -42,14 +42,24 @@ sub zone_for_ip {
 
     check_cache();
 
-    return $trie->match_string($ip);
+    return $networks->match_most_specific_zone($ip);
+}
+
+sub zones_for_ip {
+    my $class = shift;
+    my $ip = shift;
+    return unless $ip;
+
+    check_cache();
+
+    return $networks->matching_zones($ip);
 }
 
 sub check_cache {
     # Reload the trie if it's expired
     return unless (time() >= $next_reload);
 
-    $trie = Net::Patricia->new();
+    $networks = MogileFS::Network::List->new();
 
     my @zones = split(/\s*,\s*/, get_setting("network_zones"));
 
@@ -76,16 +86,9 @@ sub check_cache {
         }
     }
 
-    # Sort these by mask bit count, because Net::Patricia doesn't say in its docs whether add order
-    # or bit length is the overriding factor.
-    foreach my $set (sort { $a->[0] <=> $b->[0] } @netmasks) {
+    foreach my $set (@netmasks) {
         my ($bits, $netmask, $zone) = @$set;
-
-        if (my $other_zone = $trie->match_exact_string("$netmask")) {
-            warn "duplicate netmask <$netmask> in network zones '$zone' and '$other_zone'. check your server settings";
-        }
-
-        $trie->add_string("$netmask", $zone);
+        $networks->add_network("$netmask", $zone);
     }
 
     my $interval = get_setting("network_reload_interval") || DEFAULT_RELOAD_INTERVAL;

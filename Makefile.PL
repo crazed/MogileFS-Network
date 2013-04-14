@@ -9,7 +9,7 @@ WriteMakefile(
     ABSTRACT                => 'MogileFS Server class for representing networks based on host IPs.',
     PREREQ_PM               => {
         'Net::Netmask' => 0,
-        'Net::Patricia' => 0,
+        'NetAddr::IP' => 0,
         'MogileFS::Server' => '2.50',
     },
 );
