@@ -15,9 +15,14 @@ sub load {
     my $local_network = MogileFS::Config->config('local_network');
     die "must define 'local_network' (ie: 10.5.0.0/16) in your mogilefsd.conf"
         unless $local_network;
-    my $local_zone_test = MogileFS::Network->zone_for_ip($local_network);
+    my $local_zone = MogileFS::Network->zone_for_ip($local_network);
     die "Could not resolve a local zone for $local_network. Please ensure this IP is within a configured zone"
-        unless $local_zone_test;
+        unless $local_zone;
+
+    my $backup_zone;
+    if (MogileFS::Config->config('use_local_network_zone')) {
+        $backup_zone = $local_zone;
+    }
 
     MogileFS::register_global_hook( 'cmd_get_paths_order_devices', sub {
         my $devices = shift;
@@ -26,6 +31,7 @@ sub load {
         @$sorted_devs = prioritize_devs_current_zone(
                         $MogileFS::REQ_client_ip,
                         \&MogileFS::Worker::Query::sort_devs_by_utilization,
+                        $backup_zone,
                         @$devices
                         );
 
@@ -39,6 +45,7 @@ sub load {
         @$sorted_devs = prioritize_devs_current_zone(
                         $MogileFS::REQ_client_ip,
                         \&MogileFS::Worker::Query::sort_devs_by_freespace,
+                        $backup_zone,
                         @$devices
                         );
 
@@ -52,6 +59,7 @@ sub load {
         my @sorted = prioritize_devs_current_zone(
                      MogileFS::Config->config('local_network'),
                      sub { return @_; },
+                     undef,
                      map { $devs->{$_} } @$choices);
         @$choices  = map { $_->id } @sorted;
 
@@ -92,12 +100,16 @@ sub unload {
 }
 
 sub prioritize_devs_current_zone {
-    my $local_ip = shift;
-    my $sorter   = shift;
+    my $local_ip    = shift;
+    my $sorter      = shift;
+    my $backup_zone = shift;
 
     my @current_zones = MogileFS::Network->zones_for_ip($local_ip);
-    error("Cannot find current zone for local ip $local_ip")
-        unless @current_zones;
+    if ($backup_zone && !@current_zones) {
+        push @current_zones, $backup_zone;
+    } else {
+        error("Cannot find current zone for local ip $local_ip");
+    }
 
     my (@this_zone, @other_zone);
 
