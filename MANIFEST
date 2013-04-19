@@ -1,4 +1,5 @@
 lib/MogileFS/Network.pm
+lib/MogileFS/Network/List.pm
 lib/MogileFS/Plugin/ZoneLocal.pm
 lib/MogileFS/ReplicationPolicy/HostsPerNetwork.pm
 lib/MogileFS/ReplicationPolicy/MultipleNetworks.pm
