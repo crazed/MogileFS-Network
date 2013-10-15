@@ -5,6 +5,7 @@ package MogileFS::Plugin::ZoneLocal;
 use strict;
 use warnings;
 
+use List::Util qw/shuffle/;
 use MogileFS::Worker::Query;
 use MogileFS::Network;
 use MogileFS::Util qw/error/;
@@ -18,11 +19,7 @@ sub load {
     my $local_zone = MogileFS::Network->zone_for_ip($local_network);
     die "Could not resolve a local zone for $local_network. Please ensure this IP is within a configured zone"
         unless $local_zone;
-
-    my $backup_zone;
-    if (MogileFS::Config->config('use_local_network_zone')) {
-        $backup_zone = $local_zone;
-    }
+    my $backup_zone = $local_zone;
 
     MogileFS::register_global_hook( 'cmd_get_paths_order_devices', sub {
         my $devices = shift;
@@ -44,7 +41,7 @@ sub load {
 
         @$sorted_devs = prioritize_devs_current_zone(
                         $MogileFS::REQ_client_ip,
-                        \&MogileFS::Worker::Query::sort_devs_by_freespace,
+                        \&random_device_sorter,
                         $backup_zone,
                         @$devices
                         );
@@ -97,6 +94,11 @@ sub unload {
     MogileFS::unregister_global_hook( 'replicate_order_final_choices' );
 
     return 1;
+}
+
+sub random_device_sorter {
+    my @devices = @_;
+    return shuffle(grep { $_->should_get_new_files; } @devices);
 }
 
 sub prioritize_devs_current_zone {
