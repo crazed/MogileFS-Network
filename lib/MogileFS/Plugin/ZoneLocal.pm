@@ -109,7 +109,7 @@ sub prioritize_devs_current_zone {
     my @current_zones = MogileFS::Network->zones_for_ip($local_ip);
     if ($backup_zone && !@current_zones) {
         push @current_zones, $backup_zone;
-    } else {
+    } elsif (!@current_zones) {
         error("Cannot find current zone for local ip $local_ip");
     }
 
